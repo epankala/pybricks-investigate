@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pybricks-investigate"
+dynamic = ["version"]
+description = "Scan a Pybricks hub for devices and stream hub program output to the PC"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["pybricksdev>=2.3,<3", "bleak>=3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+pybricks-investigate = "pybricks_investigate.cli:main"
+
+[tool.hatch.version]
+path = "src/pybricks_investigate/__init__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# MicroPython programs for the hub.
+"hub/*" = ["I", "UP"]
+"src/pybricks_investigate/hub/*" = ["I", "UP"]
