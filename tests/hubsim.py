@@ -152,7 +152,9 @@ class Sim:
                 return sim.clock - self.t0
 
         hubs = _module("pybricks.hubs", TechnicHub=TechnicHub)
-        pybricks = _module("pybricks", hubs=hubs, version=(sim.hub_kind, sim.firmware, f"v{sim.firmware} on sim"))
+        # Like the firmware, submodules are not attributes of `pybricks`, so `from pybricks import hubs`
+        # fails. The odd __name__ stops CPython's fallback to sys.modules["pybricks.hubs"].
+        pybricks = _module("pybricks-firmware", version=(sim.hub_kind, sim.firmware, f"v{sim.firmware} on sim"))
         return {
             "pybricks": pybricks,
             "pybricks.hubs": hubs,

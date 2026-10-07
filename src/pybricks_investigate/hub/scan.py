@@ -1,7 +1,6 @@
 """Reports the hub and every device on its ports; optionally a remote, and live changes."""
 
 import pybricks
-from pybricks import hubs
 from pybricks.iodevices import PUPDevice
 from pybricks.parameters import Port
 from pybricks.tools import StopWatch, wait
@@ -52,6 +51,9 @@ POSITION_MODES = ("POS", "APOS")
 def open_hub():
     name = HUB_CLASSES.get(pybricks.version[0])
     try:
+        # `from pybricks import hubs` fails on the hub: firmware submodules are not attributes
+        # of `pybricks`. A non-empty fromlist makes __import__ return the submodule itself.
+        hubs = __import__("pybricks.hubs", None, None, ["hubs"])
         return getattr(hubs, name)()
     except Exception as e:
         print("hub: cannot open hub class", name, e)

@@ -1,5 +1,6 @@
 """Behavior of the bundled scan program, simulated with fake pybricks modules."""
 
+import pytest
 from hubsim import MOTOR_MODES, Device, Sim
 
 from pybricks_investigate import program
@@ -72,3 +73,8 @@ def test_watch_reports_value_changes_and_plugging():
     assert watched[connected + 1] == "port B: SPIKE Color Sensor (id 61)"
     assert "port B mode 0: 5" in watched
     assert "port C: disconnected" in watched  # passive: found by re-probing
+
+
+def test_sim_rejects_submodule_as_attribute_like_the_firmware():
+    with pytest.raises(ImportError):
+        Sim().run(SCAN, 100, source="from pybricks import hubs\n")
