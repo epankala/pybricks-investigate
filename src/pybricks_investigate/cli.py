@@ -42,7 +42,8 @@ class HubNotFound(Exception):
 
 def limit_chunk_size(hub: PybricksHubBLE, chunk_size: int) -> None:
     # pybricksdev sizes upload chunks (and stdin writes) from this private field.
-    hub._max_write_size = min(hub._max_write_size, chunk_size + CHUNK_HEADER)
+##    hub._max_write_size = min(hub._max_write_size, chunk_size + CHUNK_HEADER)
+    pass
 
 
 def error_text(e: BaseException) -> str:
