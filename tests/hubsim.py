@@ -131,6 +131,67 @@ class Sim:
                     return [v for t, v in values if t <= sim.clock][-1]
                 return values
 
+        class TypedDevice:
+            """pupdevices class for given device type ids; reads come from the Device's mode values."""
+
+            ids = ()
+
+            def __init__(self, port, *args, **kwargs):
+                self.port = port
+                self.device = sim.device_at(port)
+                if self.device is None or self.device.device_id not in self.ids:
+                    raise OSError(19, "no matching device")
+
+            def mode(self, index):
+                if sim.device_at(self.port) is not self.device:
+                    raise OSError(19, "disconnected")
+                values = self.device.values.get(index, (0,))
+                if isinstance(values, list):
+                    values = [v for t, v in values if t <= sim.clock][-1]
+                return values[0]
+
+        class Motor(TypedDevice):
+            ids = (38, 46, 47, 48, 49, 65, 75, 76)
+
+            def speed(self):
+                return self.mode(1)
+
+            def angle(self):
+                return self.mode(2)
+
+        class ColorDistanceSensor(TypedDevice):
+            ids = (37,)
+
+            def color(self):
+                return self.mode(0)
+
+            def distance(self):
+                return self.mode(1)
+
+            def reflection(self):
+                return self.mode(3)
+
+            def ambient(self):
+                return self.mode(4)
+
+            def hsv(self):
+                return f"Color(h=0, s=0, v={self.mode(3)})"
+
+        class ColorSensor(TypedDevice):
+            ids = (61,)
+
+            def color(self):
+                return self.mode(0)
+
+            def reflection(self):
+                return self.mode(1)
+
+            def ambient(self):
+                return self.mode(2)
+
+            def hsv(self):
+                return f"Color(h=240, s=100, v={self.mode(1)})"
+
         class Remote:
             def __init__(self, name=None, timeout=10000):
                 if sim.remote is None:
@@ -160,7 +221,13 @@ class Sim:
             "pybricks.hubs": hubs,
             "pybricks.iodevices": _module("pybricks.iodevices", PUPDevice=PUPDevice),
             "pybricks.parameters": _module("pybricks.parameters", Port=Port),
-            "pybricks.pupdevices": _module("pybricks.pupdevices", Remote=Remote),
+            "pybricks.pupdevices": _module(
+                "pybricks.pupdevices",
+                Motor=Motor,
+                ColorDistanceSensor=ColorDistanceSensor,
+                ColorSensor=ColorSensor,
+                Remote=Remote,
+            ),
             "pybricks.tools": _module("pybricks.tools", StopWatch=StopWatch, wait=sim.advance),
         }
 

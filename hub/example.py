@@ -1,18 +1,57 @@
-"""Example for `make run`: everything this program prints appears on the PC console."""
+"""Example for `make run`: reads the devices found by `make scan` and prints their values.
 
-from pybricks.hubs import TechnicHub
-from pybricks.tools import StopWatch, wait
+Port A: motor angle and speed (only read, never driven: turn it by hand).
+Port C: Color and Distance Sensor color and distance. Port D: SPIKE Color Sensor color.
+Runs until stopped with Ctrl-C on the PC or the hub button; missing devices are skipped.
+"""
 
-# `make run ARGS=--debug` switches this on.
+from pybricks.parameters import Port
+from pybricks.pupdevices import ColorDistanceSensor, ColorSensor, Motor
+from pybricks.tools import wait
+
+# `make run ARGS=--debug` switches this on: also reflection, ambient light and HSV.
 DEBUG = False
+INTERVAL_MS = 500
 
-hub = TechnicHub()
-clock = StopWatch()
 
-print("hello from the hub")
-for tick in range(10):
-    print("tick", tick, "at", clock.time(), "ms, battery", hub.battery.voltage(), "mV")
-    if DEBUG:
-        print("  current", hub.battery.current(), "mA")
-    wait(1000)
-print("done")
+def details(sensor):
+    return " refl %d%% amb %d%% %s" % (sensor.reflection(), sensor.ambient(), sensor.hsv()) if DEBUG else ""
+
+
+def read_motor(motor):
+    return "angle %d deg speed %d deg/s" % (motor.angle(), motor.speed())
+
+
+def read_distance_sensor(sensor):
+    return "%s dist %d%%%s" % (sensor.color(), sensor.distance(), details(sensor))
+
+
+def read_color_sensor(sensor):
+    return "%s%s" % (sensor.color(), details(sensor))
+
+
+# (port label, device class, port, reader)
+DEVICES = [
+    ("A", Motor, Port.A, read_motor),
+    ("C", ColorDistanceSensor, Port.C, read_distance_sensor),
+    ("D", ColorSensor, Port.D, read_color_sensor),
+]
+
+devices = []
+for label, kind, port, reader in DEVICES:
+    try:
+        devices.append((label, kind(port), reader))
+    except OSError:
+        print("port", label, "skipped: device missing or of another type")
+
+while True:
+    parts = []
+    for entry in list(devices):
+        label, device, reader = entry
+        try:
+            parts.append(label + " " + reader(device))
+        except OSError:
+            print("port", label, "disconnected")
+            devices.remove(entry)
+    print(" | ".join(parts) if parts else "no devices to read")
+    wait(INTERVAL_MS)
