@@ -27,6 +27,8 @@ class FakeHub:
     """Programs follow ``script``: ("line", text) | ("status", flags) | ("sleep", s) steps after start."""
 
     fw_version = "3.6.1"
+    _max_user_program_size = 16000
+    _max_write_size = 155  # a Technic Hub: MTU 158
 
     def __init__(self, script=(), failures=None, status=None):
         self.status_observable = BehaviorSubject(status or StatusFlag(0))
@@ -51,6 +53,7 @@ class FakeHub:
 
     async def run(self, path, wait, print_output):
         await self._call("run")
+        self.chunk_size = self._max_write_size - 5  # what pybricksdev's upload would use
         self.uploaded = Path(path).read_text()
         self.lines = asyncio.Queue()
         self.program = asyncio.get_running_loop().create_task(self._play())
@@ -167,3 +170,23 @@ def test_compile_defaults_to_build_bin(tmp_path, monkeypatch):
     assert args.output == Path("build/example.bin")
     assert asyncio.run(cli.cmd_compile(args)) == 0
     assert list(program.image_modules(Path("build/example.bin").read_bytes())) == ["__main__"]
+
+
+@pytest.mark.parametrize(
+    ("argv", "chunk_size"), [([], 120), (["--chunk-size", "50"], 50), (["--chunk-size", "500"], 150)]
+)
+def test_upload_chunk_size_is_capped_below_the_hub_maximum(monkeypatch, argv, chunk_size):
+    hub = FakeHub()
+    run_command(monkeypatch, ["run", *argv, str(EXAMPLE)], [hub])
+    assert hub.chunk_size == chunk_size
+
+
+def test_hub_limits_are_logged(monkeypatch, caplog):
+    caplog.set_level("INFO")
+    run_command(monkeypatch, ["scan"], [FakeHub()])
+    assert "hub limits: program 16000 bytes, write 155 bytes" in caplog.messages
+
+
+def test_chunk_size_must_be_positive():
+    with pytest.raises(SystemExit):
+        cli.parse_args(["run", "--chunk-size", "0", str(EXAMPLE)])

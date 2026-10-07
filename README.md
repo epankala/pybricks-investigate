@@ -25,6 +25,11 @@ make check       # ruff + pytest (incl. simulated scan program) + compile
 Hub output goes to stdout and the tool's log to stderr, so `make scan > scan.txt` captures
 only what the hub printed. Uploads are retried (`--attempts`, default 3) since BLE links
 occasionally drop mid-upload, and a program already running on the hub is stopped first.
+
+Programs are uploaded in 120-byte chunks (`--chunk-size`). pybricksdev otherwise uses the
+largest chunk the hub allows: 150 bytes on a Technic Hub, filling its BLE MTU of 158. On
+firmware 4.0.1 such writes were acknowledged by the hub's radio but sometimes never
+answered, so every upload larger than 2400 bytes stalled; 140-byte and smaller chunks worked.
 Ctrl-C stops the hub program; a program that ends by itself is left alone.
 
 ## Scan output

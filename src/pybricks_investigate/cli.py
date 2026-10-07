@@ -25,6 +25,11 @@ STOP_PROGRAM_RETRIES = 3
 STOP_PROGRAM_SETTLE = 0.5
 # Failures worth a fresh attempt; typically a flaky BLE link during upload.
 RETRY_ERRORS = (BleakError, HubDisconnectError, TimeoutError, asyncio.TimeoutError)
+# Program bytes per upload write. pybricksdev sends the largest chunk the hub allows: 150 on a
+# Technic Hub, filling its BLE MTU of 158. On firmware 4.0.1 such writes were acknowledged by the
+# hub's radio but sometimes never answered, stalling uploads at 2400 bytes; 140 and below worked.
+DEFAULT_CHUNK_SIZE = 120
+CHUNK_HEADER = 5  # command byte + 32-bit offset in front of each chunk
 # If the running flag never shows up, the program ended before a status report arrived.
 PROGRAM_START_TIMEOUT = 2.0
 # The firmware may clear the running flag before the last output has arrived.
@@ -33,6 +38,11 @@ OUTPUT_FLUSH_DELAY = 0.5
 
 class HubNotFound(Exception):
     pass
+
+
+def limit_chunk_size(hub: PybricksHubBLE, chunk_size: int) -> None:
+    # pybricksdev sizes upload chunks (and stdin writes) from this private field.
+    hub._max_write_size = min(hub._max_write_size, chunk_size + CHUNK_HEADER)
 
 
 def error_text(e: BaseException) -> str:
@@ -110,6 +120,8 @@ async def connect(args: argparse.Namespace, prepare: Callable[[PybricksHubBLE], 
         try:
             await hub.connect()
             logger.info("connected to %s, Pybricks firmware %s", device.name, hub.fw_version)
+            # pybricksdev reads these hub capabilities on connect; there is no public accessor.
+            logger.info("hub limits: program %d bytes, write %d bytes", hub._max_user_program_size, hub._max_write_size)
             await prepare(hub)
             return hub
         except RETRY_ERRORS as e:
@@ -139,6 +151,7 @@ async def run_and_stream(args: argparse.Namespace, path: Path) -> int:
         if watcher:
             watcher.close()
         watcher = ProgramWatcher(hub)
+        limit_chunk_size(hub, args.chunk_size)
         await hub.run(str(path), wait=False, print_output=False)
 
     hub = await connect(args, lambda hub: unless_busy(hub, lambda: start(hub)))
@@ -217,6 +230,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     hub_options.add_argument("--attempts", type=int, default=3, help="connect/upload attempts (default: %(default)s)")
     output_options = argparse.ArgumentParser(add_help=False)
     output_options.add_argument("-t", "--timestamps", action="store_true", help="prefix hub output with the PC time")
+    output_options.add_argument(
+        "--chunk-size",
+        type=int,
+        default=DEFAULT_CHUNK_SIZE,
+        help="program bytes per upload write, capped to the hub's maximum (default: %(default)s; "
+        "150, the Technic Hub maximum, stalls uploads)",
+    )
 
     commands = parser.add_subparsers(dest="command", required=True)
     parents = {"scan": [hub_options, output_options], "run": [hub_options, output_options], "stop": [hub_options]}
@@ -233,6 +253,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if getattr(args, "attempts", 1) < 1:
         parser.error("--attempts must be at least 1")
+    if getattr(args, "chunk_size", 1) < 1:
+        parser.error("--chunk-size must be at least 1")
     if args.command == "compile" and args.output is None:
         args.output = Path("build") / args.program.with_suffix(".bin").name
     return args
